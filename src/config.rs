@@ -1,43 +1,62 @@
 use std::fs;
+use std::fs::File;
+use std::io::prelude::*;
 
-use serde::{Deserialize, Serialize};
-use serde_json::{Result, Value};
-
-#[derive(Serialize, Deserialize)]
-struct Config {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Config {
     server_addr: String,
     user_name: String,
     password: String
 }
 
-fn read_config() -> Option<Config> {
-    let config_file = fs::read_to_string("config.json");
-    let config_file = match config_file {
-        Ok(contents) => contents,
-        Err(error) => {
-            warn!("Default config 'config.json' does not exist");
-            None
-        },
-    };
-
-    let config: Config = match serde_json::from_str(&config_file){
-        Config(c) => {
-            Some(config)
-            },
-            Err => {
-                None
-            },
-        };
-
-    config_file
+impl Config {
+    pub fn make_default() -> Config {
+        Config {
+            server_addr: String::from("127.0.0.1:1883"),
+            user_name: String::from("user"),
+            password: String::from("password")
+        }
+    }
 }
 
-fn write_default_config() -> Config {
-    let default_config = Config {
-        server_addr: String::from("127.0.0.1:1883"),
-        user_name: String::from("user"),
-        password: String::from("password")
+pub fn read_config() -> Config {
+    let config_file = read_config_file();
+    let config: Config = match serde_json::from_str(&config_file){
+        Ok(c) => c,
+        Err(error) => {
+            panic!("Could not read config file!  {}", error);
+        },
     };
+    config
+}
 
-    default_config
+fn read_config_file() -> String {
+    let mut config_file = get_config_file();
+    let mut string = String::new();
+    config_file.read_to_string(&mut string)
+        .expect("Could not read config file!");
+    string
+}
+
+fn get_config_file() -> File {
+    let file = File::open("config.json");
+    match file {
+        Ok(file) => file,
+        Err(error) => {
+            warn!("Config file did not exist! {}  Creating default config", error);
+            make_default_config_file()
+        },
+    }
+}
+
+fn make_default_config_file() -> File {
+    let default_config = Config::make_default();
+    let default_config = serde_json::to_string(&default_config)
+        .expect("Failed to make default configuration!");
+
+    fs::write("config.json", default_config)
+        .expect("Failed to write default config file!");
+
+    File::open("config.json")
+        .expect("Failed to reopen default config file!")
 }

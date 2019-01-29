@@ -5,6 +5,7 @@ extern crate env_logger;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
 extern crate serde_json;
 
 use std::env;
@@ -25,6 +26,8 @@ fn main() {
     env::set_var("RUST_LOG", env::var_os("RUST_LOG").unwrap_or_else(|| "info".into()));
     env_logger::init();
 
+    let config = config::read_config();
+    println!("Config: {:?}", config);
     // let config = match read_config() {
     //     Config(conf) => conf,
     //     None => write_default_config(),
