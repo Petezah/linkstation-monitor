@@ -13,6 +13,7 @@ use std::thread;
 use std::time;
 
 mod config;
+mod filetools;
 mod server;
 
 fn main() {
@@ -21,6 +22,7 @@ fn main() {
     env_logger::init();
 
     let config = config::Config::read("config.json");
+    let file_monitors = Vec::clone(&config.file_monitors);
     let server = match server::MQTTServer::connect(config) {
         Ok(s) => s,
         Err(error) => panic!("Couldn't connect to broker: {}", error),
@@ -32,12 +34,21 @@ fn main() {
     };
 
     loop {
-        match server.publish("mqtt/learning", b"Hello MQTT!".to_vec()) {
-            Ok(_) => info!("Sent"),
-            Err(error) => warn!("Failed: {}", error),
+        // Send file watches
+        for mon in &file_monitors {
+            let value: f32 = match filetools::read_value_from_file(&mon.file, mon.index) {
+                Some(v) => v,
+                None => 0.0
+            };
+
+            let value_str = value.to_string();
+            match server.publish(&mon.topic, value_str.as_bytes().to_vec()) {
+                Ok(_) => info!("Sent {} to {}", value_str, mon.topic),
+                Err(error) => warn!("Failed: {}", error),
+            }
         }
 
-        let duration = time::Duration::from_millis(1000);
+        let duration = time::Duration::from_millis(5000);
         thread::sleep(duration);
     }
 }

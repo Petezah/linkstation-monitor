@@ -7,7 +7,15 @@ use std::path::{Path};
 pub struct Config {
     pub server_addr: String,
     pub user_name: String,
-    pub password: String
+    pub password: String,
+    pub file_monitors: Vec<FileMonitor>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct FileMonitor {
+    pub topic: String,
+    pub file: String,
+    pub index: usize
 }
 
 impl Config {
@@ -15,7 +23,14 @@ impl Config {
         Config {
             server_addr: String::from("127.0.0.1:1883"),
             user_name: String::from("user"),
-            password: String::from("password")
+            password: String::from("password"),
+            file_monitors: vec![
+                FileMonitor {
+                    topic: String::from("mqtt/learning"),
+                    file: String::from("/proc/uptime"),
+                    index: 0
+                }
+                ]
         }
     }
 
