@@ -8,7 +8,9 @@ pub struct Config {
     pub server_addr: String,
     pub user_name: String,
     pub password: String,
-    pub file_monitors: Vec<FileMonitor>
+    pub file_monitors: Vec<FileMonitor>,
+    pub mount_monitor: String,
+    pub mount_monitor_topic: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -30,7 +32,9 @@ impl Config {
                     file: String::from("/proc/uptime"),
                     index: 0
                 }
-                ]
+                ],
+            mount_monitor: String::from("/mnt/c"),
+            mount_monitor_topic: String::from("mqtt/mount_monitor")
         }
     }
 

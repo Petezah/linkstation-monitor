@@ -1,5 +1,6 @@
 use std::io::{Write, Error, ErrorKind};
 use std::net::TcpStream;
+use std::string::ToString;
 use std::thread;
 
 use crate::config::Config;
@@ -106,5 +107,10 @@ impl MQTTServer {
         let mut buf = Vec::new();
         packet.encode(&mut buf).unwrap();
         self.stream.write_all(&buf[..])
+    }
+
+    pub fn publish_value<V: ToString>(&mut self, topic: &str, value: V) -> Result<(),std::io::Error> {
+        let message = value.to_string();
+        self.publish(topic, message.as_bytes().to_vec())
     }
 }
