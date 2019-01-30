@@ -99,9 +99,10 @@ impl MQTTServer {
 
     pub fn publish<M: Into<Vec<u8>>>(&mut self, topic: &str, message: M) -> Result<(),std::io::Error> {
         // Create a new Publish packet
-        let packet = PublishPacket::new(TopicName::new(topic).unwrap(),
+        let mut packet = PublishPacket::new(TopicName::new(topic).unwrap(),
                                     QoSWithPacketIdentifier::Level0,
                                     message);
+        packet.set_retain(true);
         let mut buf = Vec::new();
         packet.encode(&mut buf).unwrap();
         self.stream.write_all(&buf[..])
