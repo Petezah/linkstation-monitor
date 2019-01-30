@@ -11,6 +11,7 @@ pub struct Config {
     pub file_monitors: Vec<FileMonitor>,
     pub mount_monitor: String,
     pub mount_monitor_topic: String,
+    pub publish_delay_ms: u64
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -34,7 +35,8 @@ impl Config {
                 }
                 ],
             mount_monitor: String::from("/mnt/c"),
-            mount_monitor_topic: String::from("mqtt/mount_monitor")
+            mount_monitor_topic: String::from("mqtt/mount_monitor"),
+            publish_delay_ms: 5000
         }
     }
 

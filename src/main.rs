@@ -10,6 +10,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 use std::env;
+use std::path::Path;
 use std::thread;
 use std::time;
 
@@ -22,10 +23,17 @@ fn main() {
     env::set_var("RUST_LOG", env::var_os("RUST_LOG").unwrap_or_else(|| "info".into()));
     env_logger::init();
 
-    let config = config::Config::read("config.json");
+    // configure config location
+    let config_root = env::var_os("LSMON_CONFIG_PATH").unwrap_or_else(|| "./".into());
+    let config_root = Path::new(&config_root);
+    let config_path = config_root.join("config.json");
+    info!("Loading config from '{:?}'", config_path);
+
+    let config = config::Config::read(config_path);
     let file_monitors = Vec::clone(&config.file_monitors);
     let mount_monitor = String::clone(&config.mount_monitor);
     let mount_monitor_topic = String::clone(&config.mount_monitor_topic);
+    let publish_delay = config.publish_delay_ms;
     let server = match server::MQTTServer::connect(config) {
         Ok(s) => s,
         Err(error) => panic!("Couldn't connect to broker: {}", error),
@@ -82,7 +90,7 @@ fn main() {
             Err(error) => warn!("Could not get fs info: {}", error),
         };
 
-        let duration = time::Duration::from_millis(5000);
+        let duration = time::Duration::from_millis(publish_delay);
         thread::sleep(duration);
     }
 }
