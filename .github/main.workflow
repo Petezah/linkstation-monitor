@@ -5,5 +5,5 @@ workflow "Build Project" {
 
 action "Rust GitHub Action" {
   uses = "icepuma/rust-action@master"
-  args = "cargo build"
+  args = "cargo build && cargo test"
 }
