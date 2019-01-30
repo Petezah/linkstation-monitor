@@ -1,4 +1,4 @@
-workflow "New workflow" {
+workflow "Build Project" {
   on = "push"
   resolves = ["Rust GitHub Action"]
 }
