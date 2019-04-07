@@ -10,6 +10,7 @@ extern crate serde_derive;
 extern crate serde_json;
 
 use std::env;
+use std::io::ErrorKind;
 use std::path::Path;
 use std::thread;
 use std::time;
@@ -19,8 +20,11 @@ mod datatools;
 mod server;
 
 fn main() {
-     // configure logging
-    env::set_var("RUST_LOG", env::var_os("RUST_LOG").unwrap_or_else(|| "info".into()));
+    // configure logging
+    env::set_var(
+        "RUST_LOG",
+        env::var_os("RUST_LOG").unwrap_or_else(|| "info".into()),
+    );
     env_logger::init();
 
     // configure config location
@@ -44,53 +48,101 @@ fn main() {
         Err(error) => panic!("Couldn't start server: {}", error),
     };
 
+    let mut server_okay = true;
     loop {
-        // Send file watches
-        for mon in &file_monitors {
-            let value: f32 = match datatools::read_value_from_file(&mon.file, mon.index) {
-                Some(v) => v,
-                None => 0.0
+        if !server_okay {
+            info!("Connection was reset; trying to reestablish connection...");
+            server = server.reconnect();
+            server = match server.start() {
+                Ok(s) => s,
+                Err(error) => panic!("Couldn't restart server: {}", error),
             };
-
-            let value_str = value.to_string();
-            match server.publish(&mon.topic, value_str.as_bytes().to_vec()) {
-                Ok(_) => info!("Sent {} to {}", value_str, mon.topic),
-                Err(error) => warn!("Failed: {}", error),
-            }
+            server_okay = true;
         }
 
-        // Send filesystem info
-        match datatools::FileSystemInfo::get() {
-            Ok(fs_info) => {
-                match fs_info.mounts.iter().find(|info| info.mount == mount_monitor) {
-                    Some(array1_info) => {
-                        let topic = format!("{}/used", mount_monitor_topic);
-                        match server.publish_value(&topic, array1_info.used) {
-                            Ok(_) => info!("Sent {} to {}", array1_info.used, topic),
-                            Err(error) => warn!("Failed: {}", error),  
-                        }
-
-                        let topic = format!("{}/size", mount_monitor_topic);
-                        match server.publish_value(&topic, array1_info.size) {
-                            Ok(_) => info!("Sent {} to {}", array1_info.size, topic),
-                            Err(error) => warn!("Failed: {}", error),  
-                        }
-
-                        let topic = format!("{}/usage", mount_monitor_topic);
-                        match server.publish_value(&topic, array1_info.usage) {
-                            Ok(_) => info!("Sent {} to {}", array1_info.usage, topic),
-                            Err(error) => warn!("Failed: {}", error),  
-                        }
-                    }
-                    None => {
-                        // Ignore
-                    }
+        match send_watches(&mut server, &file_monitors, &mount_monitor, &mount_monitor_topic) {
+            Ok(_) => trace!("Sent all watches successfully!"),
+            Err(error) => {
+                if let ErrorKind::ConnectionReset = error.kind() {
+                    warn!("Could not send watches!  Connection reset!");
+                    server_okay = false;
                 }
             }
-            Err(error) => warn!("Could not get fs info: {}", error),
-        };
+        }
 
         let duration = time::Duration::from_millis(publish_delay);
         thread::sleep(duration);
     }
+}
+
+fn send_watches(
+    server: &mut server::MQTTServer,
+    file_monitors: &Vec<config::FileMonitor>,
+    mount_monitor: &str,
+    mount_monitor_topic: &str) -> Result<(), std::io::Error> {
+    // Send file watches
+    for mon in file_monitors {
+        let value: f32 = match datatools::read_value_from_file(&mon.file, mon.index) {
+            Some(v) => v,
+            None => 0.0,
+        };
+
+        let value_str = value.to_string();
+        match server.publish(&mon.topic, value_str.as_bytes().to_vec()) {
+            Ok(_) => info!("Sent {} to {}", value_str, mon.topic),
+            Err(error) => {
+                warn!("Failed: {}", error); 
+                return Err(error);
+            },
+        }
+    }
+
+    // Send filesystem info
+    match datatools::FileSystemInfo::get() {
+        Ok(fs_info) => {
+            match fs_info
+                .mounts
+                .iter()
+                .find(|info| info.mount == mount_monitor)
+            {
+                Some(array1_info) => {
+                    let topic = format!("{}/used", mount_monitor_topic);
+                    match server.publish_value(&topic, array1_info.used) {
+                        Ok(_) => info!("Sent {} to {}", array1_info.used, topic),
+                        Err(error) => {
+                            warn!("Failed: {}", error); 
+                            return Err(error);
+                        },
+                    }
+
+                    let topic = format!("{}/size", mount_monitor_topic);
+                    match server.publish_value(&topic, array1_info.size) {
+                        Ok(_) => info!("Sent {} to {}", array1_info.size, topic),
+                        Err(error) => {
+                            warn!("Failed: {}", error); 
+                            return Err(error);
+                        },
+                    }
+
+                    let topic = format!("{}/usage", mount_monitor_topic);
+                    match server.publish_value(&topic, array1_info.usage) {
+                        Ok(_) => info!("Sent {} to {}", array1_info.usage, topic),
+                        Err(error) => {
+                            warn!("Failed: {}", error); 
+                            return Err(error);
+                        },
+                    }
+                }
+                None => {
+                    // Ignore
+                }
+            }
+        }
+        Err(error) => {
+            warn!("Could not get fs info: {}", error); 
+            // Do not return Err here; we only care about network errors
+        },
+    };
+
+    Ok(())
 }
